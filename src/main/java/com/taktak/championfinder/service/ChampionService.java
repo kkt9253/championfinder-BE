@@ -1,80 +1,92 @@
 package com.taktak.championfinder.service;
 
+import com.taktak.championfinder.dto.ChampionDTO;
 import com.taktak.championfinder.model.Champion;
 import com.taktak.championfinder.repository.ChampionRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.ArrayList;
 
 @Service
 public class ChampionService {
 
     private final ChampionRepository championRepository;
+
     public ChampionService(ChampionRepository championRepository) {
         this.championRepository = championRepository;
     }
 
-    public Champion recommendChampion(List<Boolean> userResponses) {
+    // 질문 응답 기반의 챔피언 추천 로직
+    public ChampionDTO recommendChampion(List<Boolean> userResponses) {
+        // 현재 모든 챔피언 데이터를 조회
+        List<Champion> DBChampions = championRepository.findAll();
 
-        List<Champion> currentChampions = championRepository.findAll();
+        // 비트의 총합을 통한 필터링1
         int userBitSum = calculateBitSum(userResponses);
-
-        // 유저 비트의 합과 챔피언 비트 비교
-        List<Champion> sameBitChampions = currentChampions.stream()
+        List<Champion> matchingChampions = DBChampions.stream()
                 .filter(champion -> champion.getBitValue() == userBitSum)
                 .toList();
-
-        if (!sameBitChampions.isEmpty()) return sameBitChampions.get(0);
-
-        // 유저 비트의 합과 챔피언 비트가 매치되지 않는다면 순차적 추천 로직 수행
-        List<Champion> prevChampions = currentChampions;
-
-        for (int i = 0; i < 15; i++) {
-            boolean userResponse = userResponses.get(i);
-            int idx = i; // 람다식에선 사용하는 변수가 final이여야 하기에 사용할 인덱스를 반복할 떄마다 새롭게 초기화
-
-            prevChampions = currentChampions;
-
-            currentChampions = currentChampions.stream()
-                    .filter(champion -> getChampionResponseByIndex(champion, idx) == userResponse)
-                    .toList();
-
-            if (currentChampions.isEmpty()) return prevChampions.get(0);
-            if (currentChampions.size() == 1) return currentChampions.get(0);
+        if (!matchingChampions.isEmpty()) {
+            return convertChampionToDTO(matchingChampions.get(0));
         }
 
-        return currentChampions.get(0);
+        // 비트의 총합이 동일하지 않으면, 필터링2 수행
+        Champion champion = findBestMatchingChampion(DBChampions, userResponses);
+        return convertChampionToDTO(champion);
     }
 
-    // 사용자의 응답 비트 합을 계산하는 메서드
+    // 사용자 응답의 비트 합을 계산하는 메서드
     private int calculateBitSum(List<Boolean> userResponses) {
         int bitSum = 0;
         for (int i = 0; i < userResponses.size(); i++) {
             if (userResponses.get(i)) {
-                bitSum += (1 << i);
+                bitSum |= (1 << i); // i번째 비트에 해당하는 값을 더함
             }
         }
         return bitSum;
     }
 
+    private Champion findBestMatchingChampion(List<Champion> champions, List<Boolean> userResponses) {
+        List<Champion> currentChampions = new ArrayList<>(champions);
+
+        for (int i = 0; i < userResponses.size(); i++) {
+            final int index = i; // 람다 표현식에서 사용하는 인덱스는 final 또는 effectively final이어야 함
+            boolean userResponse = userResponses.get(index);
+            List<Champion> prevChampions = new ArrayList<>(currentChampions); // 이전 상태 저장
+
+            currentChampions = currentChampions.stream()
+                    .filter(champion -> getChampionResponseByIndex(champion, index) == userResponse)
+                    .toList();
+
+            // 조건에 맞는 챔피언이 없을 경우 이전 상태에서 첫 번째 챔피언 반환
+            if (currentChampions.isEmpty()) {
+                return prevChampions.get(0);
+            }
+            // 1개의 챔피언만 남으면 해당 챔피언 반환
+            if (currentChampions.size() == 1) {
+                return currentChampions.get(0);
+            }
+        }
+        return currentChampions.get(0);
+    }
+
+    // 특정 챔피언의 질문 응답을 인덱스에 맞춰 가져오는 메서드
     private boolean getChampionResponseByIndex(Champion champion, int index) {
-        return switch (index) {
-            case 0 -> champion.getQuestion1();
-            case 1 -> champion.getQuestion2();
-            case 2 -> champion.getQuestion3();
-            case 3 -> champion.getQuestion4();
-            case 4 -> champion.getQuestion5();
-            case 5 -> champion.getQuestion6();
-            case 6 -> champion.getQuestion7();
-            case 7 -> champion.getQuestion8();
-            case 8 -> champion.getQuestion9();
-            case 9 -> champion.getQuestion10();
-            case 10 -> champion.getQuestion11();
-            case 11 -> champion.getQuestion12();
-            case 12 -> champion.getQuestion13();
-            case 13 -> champion.getQuestion14();
-            case 14 -> champion.getQuestion15();
-            default -> throw new IllegalArgumentException("Invalid index: " + index);
-        };
+        return champion.getChampionClassifications().stream()
+                .filter(classification -> classification.getQuestionIndex() == index)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("getChampionResponseByIndex method Invalid index: " + index))
+                .getValue();
+    }
+
+    // Champion -> ChampionDTO
+    private ChampionDTO convertChampionToDTO(Champion champion) {
+        return new ChampionDTO(
+                champion.getId(),
+                champion.getName(),
+                champion.getImg(),
+                champion.getDescription()
+        );
     }
 }
