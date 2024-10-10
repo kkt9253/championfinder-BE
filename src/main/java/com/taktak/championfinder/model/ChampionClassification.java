@@ -13,10 +13,10 @@ public class ChampionClassification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @Column(name = "question_index")
+    @Column(name = "question_index", nullable = false)
     private int questionIndex;
 
-    @Column(name = "value")
+    @Column(name = "value", nullable = false)
     private Boolean value;
 
     @ManyToOne

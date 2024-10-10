@@ -6,9 +6,9 @@ import lombok.*;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChampionDTO {
+public class TestDTO {
     private int id;
     private String name;
-    private String img;
     private String description;
+    private String thumbnailUrl;
 }
